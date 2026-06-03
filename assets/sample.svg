@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs><linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" style="stop-color:#667eea"/><stop offset="100%" style="stop-color:#764ba2"/></linearGradient></defs>
+  <rect width="400" height="400" fill="#f8f9fa" rx="20"/>
+  <circle cx="120" cy="120" r="40" fill="url(#g1)" opacity="0.9"/>
+  <rect x="200" y="80" width="80" height="80" rx="10" fill="#667eea" opacity="0.8"/>
+  <polygon points="160,220 200,300 120,300" fill="#764ba2" opacity="0.85"/>
+  <circle cx="280" cy="260" r="50" fill="url(#g1)" opacity="0.7"/>
+  <text x="200" y="390" text-anchor="middle" font-family="Arial" font-size="12" fill="#6c757d">Sample Icon Set - FileExamples.com</text>
+</svg>
