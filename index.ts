@@ -468,6 +468,39 @@ server.registerTool(
 );
 
 // ============================================================
+// 11.5. 超长 message 生成
+// ============================================================
+server.registerTool(
+  'test_long_message',
+  {
+    title: 'Long Message Generator',
+    description: '生成超长 message。可指定 content children 数量和每个 text 的长度',
+    inputSchema: z.object({
+      children_count: z.number().describe('content 数组中的 children 数量'),
+      text_length: z.number().describe('每个 content item 中 text 的字符长度'),
+    }),
+  },
+  async ({ children_count, text_length }) => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ';
+    const generateText = (index: number, length: number): string => {
+      const prefix = `[Item ${index + 1}/${children_count}] `;
+      const remaining = Math.max(0, length - prefix.length);
+      let text = prefix;
+      for (let i = 0; i < remaining; i++) {
+        text += chars[i % chars.length];
+      }
+      return text;
+    };
+    return {
+      content: Array.from({ length: children_count }, (_, i) => ({
+        type: 'text' as const,
+        text: generateText(i, text_length),
+      })),
+    };
+  }
+);
+
+// ============================================================
 // 不符合规范的 case（测试客户端健壮性）
 // ============================================================
 

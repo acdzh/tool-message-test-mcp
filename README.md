@@ -33,6 +33,17 @@ bun run index.ts
 }
 ```
 
+```json
+{
+  "mcpServers": {
+    "message-test": {
+      "command": "bun run",
+      "args": ["/Users/admin/dev/work/mcp/server/message-test/index.ts"]
+    }
+  }
+}
+```
+
 ## 提供的 Tools
 
 | Tool | 描述 |
