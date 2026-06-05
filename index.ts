@@ -4,6 +4,7 @@ import { z } from 'zod/v4';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { deflateSync } from 'zlib';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const assetsDir = resolve(__dirname, 'assets');
@@ -496,6 +497,194 @@ server.registerTool(
         type: 'text' as const,
         text: generateText(i, text_length),
       })),
+    };
+  }
+);
+
+// ============================================================
+// 11.6. 动态生成图像
+// ============================================================
+
+/** 解析 hex 颜色为 RGB 数组 */
+function parseHexColor(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+  ];
+}
+
+/** 生成 PNG 文件的 Buffer */
+function generatePng(width: number, height: number, pixels: Uint8Array): Buffer {
+  // PNG signature
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+  // IHDR chunk
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;  // bit depth
+  ihdr[9] = 2;  // color type: RGB
+  ihdr[10] = 0; // compression
+  ihdr[11] = 0; // filter
+  ihdr[12] = 0; // interlace
+
+  // IDAT chunk: raw image data with filter bytes
+  const rawData = Buffer.alloc(height * (1 + width * 3));
+  for (let y = 0; y < height; y++) {
+    const rowOffset = y * (1 + width * 3);
+    rawData[rowOffset] = 0; // filter: None
+    for (let x = 0; x < width; x++) {
+      const srcIdx = (y * width + x) * 3;
+      const dstIdx = rowOffset + 1 + x * 3;
+      rawData[dstIdx] = pixels[srcIdx]!;
+      rawData[dstIdx + 1] = pixels[srcIdx + 1]!;
+      rawData[dstIdx + 2] = pixels[srcIdx + 2]!;
+    }
+  }
+  const compressed = deflateSync(rawData);
+
+  // 构建 chunks
+  const chunks: Buffer[] = [signature];
+
+  const writeChunk = (type: string, data: Buffer) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length, 0);
+    const typeB = Buffer.from(type, 'ascii');
+    const crcData = Buffer.concat([typeB, data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(crcData), 0);
+    chunks.push(len, typeB, data, crc);
+  };
+
+  writeChunk('IHDR', ihdr);
+  writeChunk('IDAT', compressed);
+  writeChunk('IEND', Buffer.alloc(0));
+
+  return Buffer.concat(chunks);
+}
+
+/** CRC32 计算 (PNG 标准) */
+function crc32(buf: Buffer): number {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) {
+    crc ^= buf[i]!;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+    }
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+/** 生成像素数据 */
+function generatePixels(width: number, height: number, pattern: string, color: string): Uint8Array {
+  const [r, g, b] = parseHexColor(color);
+  const pixels = new Uint8Array(width * height * 3);
+
+  switch (pattern) {
+    case 'solid':
+      for (let i = 0; i < width * height; i++) {
+        pixels[i * 3] = r;
+        pixels[i * 3 + 1] = g;
+        pixels[i * 3 + 2] = b;
+      }
+      break;
+    case 'gradient':
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const t = x / (width - 1 || 1);
+          const idx = (y * width + x) * 3;
+          pixels[idx] = Math.round(r * (1 - t));
+          pixels[idx + 1] = Math.round(g * (1 - t) + 255 * t);
+          pixels[idx + 2] = Math.round(b * (1 - t));
+        }
+      }
+      break;
+    case 'checkerboard': {
+      const cellSize = Math.max(1, Math.floor(Math.min(width, height) / 8));
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const isWhite = ((Math.floor(x / cellSize) + Math.floor(y / cellSize)) % 2) === 0;
+          const idx = (y * width + x) * 3;
+          if (isWhite) {
+            pixels[idx] = r; pixels[idx + 1] = g; pixels[idx + 2] = b;
+          } else {
+            pixels[idx] = 255; pixels[idx + 1] = 255; pixels[idx + 2] = 255;
+          }
+        }
+      }
+      break;
+    }
+    case 'noise':
+      for (let i = 0; i < width * height * 3; i++) {
+        pixels[i] = Math.floor(Math.random() * 256);
+      }
+      break;
+    default:
+      for (let i = 0; i < width * height; i++) {
+        pixels[i * 3] = r;
+        pixels[i * 3 + 1] = g;
+        pixels[i * 3 + 2] = b;
+      }
+  }
+  return pixels;
+}
+
+server.registerTool(
+  'test_generate_image',
+  {
+    title: 'Generate Image',
+    description: '动态生成指定参数的图像。支持配置宽高、格式、图案和颜色',
+    inputSchema: z.object({
+      width: z.number().min(1).max(4096).default(200).describe('图像宽度（像素）'),
+      height: z.number().min(1).max(4096).default(200).describe('图像高度（像素）'),
+      format: z.enum(['png', 'svg']).default('png').describe('图像格式'),
+      pattern: z.enum(['solid', 'gradient', 'checkerboard', 'noise']).default('solid').describe('图案模式'),
+      color: z.string().default('#FF6B6B').describe('主色调（hex 格式，如 #FF6B6B）'),
+      count: z.number().min(1).max(20).default(1).describe('生成图像数量'),
+    }),
+  },
+  async ({ width, height, format, pattern, color, count }) => {
+    const generateOne = () => {
+      if (format === 'svg') {
+        const [r, g, b] = parseHexColor(color);
+        let svgContent = '';
+        switch (pattern) {
+          case 'solid':
+            svgContent = `<rect width="${width}" height="${height}" fill="${color}"/>`;
+            break;
+          case 'gradient':
+            svgContent = `<defs><linearGradient id="g"><stop offset="0%" stop-color="${color}"/><stop offset="100%" stop-color="rgb(${255 - r},${255 - g},${255 - b})"/></linearGradient></defs><rect width="${width}" height="${height}" fill="url(#g)"/>`;
+            break;
+          case 'checkerboard': {
+            const cellSize = Math.max(1, Math.floor(Math.min(width, height) / 8));
+            svgContent = `<defs><pattern id="c" width="${cellSize * 2}" height="${cellSize * 2}" patternUnits="userSpaceOnUse"><rect width="${cellSize}" height="${cellSize}" fill="${color}"/><rect x="${cellSize}" y="${cellSize}" width="${cellSize}" height="${cellSize}" fill="${color}"/><rect x="${cellSize}" width="${cellSize}" height="${cellSize}" fill="white"/><rect y="${cellSize}" width="${cellSize}" height="${cellSize}" fill="white"/></pattern></defs><rect width="${width}" height="${height}" fill="url(#c)"/>`;
+            break;
+          }
+          case 'noise':
+            svgContent = `<rect width="${width}" height="${height}" fill="${color}"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" font-size="14" fill="white">noise (PNG only)</text>`;
+            break;
+        }
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${svgContent}</svg>`;
+        return {
+          type: 'image' as const,
+          data: Buffer.from(svg).toString('base64'),
+          mimeType: 'image/svg+xml',
+        };
+      }
+      // PNG format
+      const pixels = generatePixels(width, height, pattern, color);
+      const png = generatePng(width, height, pixels);
+      return {
+        type: 'image' as const,
+        data: png.toString('base64'),
+        mimeType: 'image/png',
+      };
+    };
+
+    return {
+      content: Array.from({ length: count }, () => generateOne()),
     };
   }
 );
