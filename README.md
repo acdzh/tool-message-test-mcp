@@ -26,6 +26,17 @@ bun run index.ts
 {
   "mcpServers": {
     "message-test": {
+      "command": "npx",
+      "args": ["mcp-message-test"]
+    }
+  }
+}
+```
+
+```json
+{
+  "mcpServers": {
+    "message-test": {
       "command": "bunx",
       "args": ["github:acdzh/tool-message-test-mcp"]
     }
