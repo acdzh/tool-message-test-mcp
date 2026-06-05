@@ -635,57 +635,104 @@ server.registerTool(
   'test_generate_image',
   {
     title: 'Generate Image',
-    description: '动态生成指定参数的图像。支持配置宽高、格式、图案和颜色',
+    description: '动态生成指定参数的图像。支持本地生成（pattern 模式）和从 API 获取真实图片（source 模式）',
     inputSchema: z.object({
       width: z.number().min(1).max(4096).default(200).describe('图像宽度（像素）'),
       height: z.number().min(1).max(4096).default(200).describe('图像高度（像素）'),
-      format: z.enum(['png', 'svg']).default('png').describe('图像格式'),
-      pattern: z.enum(['solid', 'gradient', 'checkerboard', 'noise']).default('solid').describe('图案模式'),
-      color: z.string().default('#FF6B6B').describe('主色调（hex 格式，如 #FF6B6B）'),
+      source: z.enum(['local', 'picsum', 'placeholder']).default('local').describe(
+        'local: 本地生成图案; picsum: 从 picsum.photos 获取随机真实照片; placeholder: 生成带文字的占位图'
+      ),
+      format: z.enum(['png', 'svg']).default('png').describe('图像格式（仅 local 模式有效）'),
+      pattern: z.enum(['solid', 'gradient', 'checkerboard', 'noise']).default('solid').describe('图案模式（仅 local 模式有效）'),
+      color: z.string().default('#FF6B6B').describe('主色调（hex 格式，仅 local/placeholder 模式有效）'),
+      text: z.string().default('').describe('占位图上的文字（仅 placeholder 模式有效，为空则显示尺寸）'),
       count: z.number().min(1).max(20).default(1).describe('生成图像数量'),
     }),
   },
-  async ({ width, height, format, pattern, color, count }) => {
-    const generateOne = () => {
-      if (format === 'svg') {
-        const [r, g, b] = parseHexColor(color);
-        let svgContent = '';
-        switch (pattern) {
-          case 'solid':
-            svgContent = `<rect width="${width}" height="${height}" fill="${color}"/>`;
-            break;
-          case 'gradient':
-            svgContent = `<defs><linearGradient id="g"><stop offset="0%" stop-color="${color}"/><stop offset="100%" stop-color="rgb(${255 - r},${255 - g},${255 - b})"/></linearGradient></defs><rect width="${width}" height="${height}" fill="url(#g)"/>`;
-            break;
-          case 'checkerboard': {
-            const cellSize = Math.max(1, Math.floor(Math.min(width, height) / 8));
-            svgContent = `<defs><pattern id="c" width="${cellSize * 2}" height="${cellSize * 2}" patternUnits="userSpaceOnUse"><rect width="${cellSize}" height="${cellSize}" fill="${color}"/><rect x="${cellSize}" y="${cellSize}" width="${cellSize}" height="${cellSize}" fill="${color}"/><rect x="${cellSize}" width="${cellSize}" height="${cellSize}" fill="white"/><rect y="${cellSize}" width="${cellSize}" height="${cellSize}" fill="white"/></pattern></defs><rect width="${width}" height="${height}" fill="url(#c)"/>`;
-            break;
-          }
-          case 'noise':
-            svgContent = `<rect width="${width}" height="${height}" fill="${color}"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" font-size="14" fill="white">noise (PNG only)</text>`;
-            break;
-        }
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${svgContent}</svg>`;
-        return {
-          type: 'image' as const,
-          data: Buffer.from(svg).toString('base64'),
-          mimeType: 'image/svg+xml',
-        };
-      }
-      // PNG format
-      const pixels = generatePixels(width, height, pattern, color);
-      const png = generatePng(width, height, pixels);
+  async ({ width, height, source, format, pattern, color, text, count }) => {
+    /** 从 URL 获取图片并转为 base64 */
+    const fetchImageBase64 = async (url: string): Promise<{ data: string; mimeType: string }> => {
+      const resp = await fetch(url, { redirect: 'follow' });
+      if (!resp.ok) throw new Error(`Failed to fetch image: ${resp.status} ${resp.statusText}`);
+      const contentType = resp.headers.get('content-type') || 'image/jpeg';
+      const arrayBuf = await resp.arrayBuffer();
       return {
-        type: 'image' as const,
-        data: png.toString('base64'),
-        mimeType: 'image/png',
+        data: Buffer.from(arrayBuf).toString('base64'),
+        mimeType: contentType.split(';')[0]!.trim(),
       };
     };
 
-    return {
-      content: Array.from({ length: count }, () => generateOne()),
+    const generateOne = async (index: number) => {
+      switch (source) {
+        case 'picsum': {
+          // picsum.photos 每次请求返回不同的随机真实照片
+          const url = `https://picsum.photos/${width}/${height}?random=${Date.now()}_${index}`;
+          const { data, mimeType } = await fetchImageBase64(url);
+          return { type: 'image' as const, data, mimeType };
+        }
+        case 'placeholder': {
+          // 生成带文字的 SVG 占位图
+          const displayText = text || `${width}×${height}`;
+          const bgColor = color.replace('#', '');
+          // 计算对比色作为文字颜色
+          const [r, g, b] = parseHexColor(color);
+          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+          const textColor = brightness > 128 ? '#000000' : '#FFFFFF';
+          const fontSize = Math.max(12, Math.min(width, height) / 8);
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+  <rect width="${width}" height="${height}" fill="#${bgColor}"/>
+  <text x="50%" y="50%" text-anchor="middle" dy=".35em" font-family="Arial, sans-serif" font-size="${fontSize}" fill="${textColor}">${displayText}</text>
+</svg>`;
+          return {
+            type: 'image' as const,
+            data: Buffer.from(svg).toString('base64'),
+            mimeType: 'image/svg+xml',
+          };
+        }
+        case 'local':
+        default: {
+          if (format === 'svg') {
+            const [r, g, b] = parseHexColor(color);
+            let svgContent = '';
+            switch (pattern) {
+              case 'solid':
+                svgContent = `<rect width="${width}" height="${height}" fill="${color}"/>`;
+                break;
+              case 'gradient':
+                svgContent = `<defs><linearGradient id="g"><stop offset="0%" stop-color="${color}"/><stop offset="100%" stop-color="rgb(${255 - r},${255 - g},${255 - b})"/></linearGradient></defs><rect width="${width}" height="${height}" fill="url(#g)"/>`;
+                break;
+              case 'checkerboard': {
+                const cellSize = Math.max(1, Math.floor(Math.min(width, height) / 8));
+                svgContent = `<defs><pattern id="c" width="${cellSize * 2}" height="${cellSize * 2}" patternUnits="userSpaceOnUse"><rect width="${cellSize}" height="${cellSize}" fill="${color}"/><rect x="${cellSize}" y="${cellSize}" width="${cellSize}" height="${cellSize}" fill="${color}"/><rect x="${cellSize}" width="${cellSize}" height="${cellSize}" fill="white"/><rect y="${cellSize}" width="${cellSize}" height="${cellSize}" fill="white"/></pattern></defs><rect width="${width}" height="${height}" fill="url(#c)"/>`;
+                break;
+              }
+              case 'noise':
+                svgContent = `<rect width="${width}" height="${height}" fill="${color}"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" font-size="14" fill="white">noise (PNG only)</text>`;
+                break;
+            }
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${svgContent}</svg>`;
+            return {
+              type: 'image' as const,
+              data: Buffer.from(svg).toString('base64'),
+              mimeType: 'image/svg+xml',
+            };
+          }
+          // PNG format
+          const pixels = generatePixels(width, height, pattern, color);
+          const png = generatePng(width, height, pixels);
+          return {
+            type: 'image' as const,
+            data: png.toString('base64'),
+            mimeType: 'image/png',
+          };
+        }
+      }
     };
+
+    const content = await Promise.all(
+      Array.from({ length: count }, (_, i) => generateOne(i))
+    );
+    return { content };
   }
 );
 
