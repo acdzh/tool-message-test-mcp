@@ -1,0 +1,64 @@
+src/tools/gen_mixed.ts
+  6fbe1e394b48e98b 2
+  d33758cecc44b5d0 4,50-51,53-54,58-60,63-67,71
+package.json
+  6fbe1e394b48e98b 24
+  d33758cecc44b5d0 3
+src/utils/index.ts
+  d33758cecc44b5d0 6
+src/tools/gen_text.ts
+  6fbe1e394b48e98b 2
+src/tools/gen_embedded_resource.ts
+  6fbe1e394b48e98b 3
+  d33758cecc44b5d0 5,12,15-17,23,25,27-51,55-57
+src/tools/gen_image.ts
+  d33758cecc44b5d0 5
+  6fbe1e394b48e98b 3
+src/tools/gen_invalid.ts
+  6fbe1e394b48e98b 2
+  d33758cecc44b5d0 3-10,105,109,136
+src/utils/generators.ts
+  d33758cecc44b5d0 1-37
+src/tools/gen_resource_link.ts
+  6fbe1e394b48e98b 5
+  d33758cecc44b5d0 7,16-30
+src/tools/gen_audio.ts
+  6fbe1e394b48e98b 2
+src/index.ts
+  6fbe1e394b48e98b 2-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a5cfccccd1d96cf02fe5f493030cd125ea0f8ccd",
+  "prompts": {
+    "6fbe1e394b48e98b": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a22886b53317ff6ab8b21af",
+        "model": "c_o_new_thinking__max"
+      },
+      "human_author": "zhukuan <zhukuan.cade@bytedance.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 9,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    },
+    "d33758cecc44b5d0": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a22946b53317ff6ab8b2341",
+        "model": "c_o_new_thinking__max"
+      },
+      "human_author": "zhukuan <zhukuan.cade@bytedance.com>",
+      "messages": [],
+      "total_additions": 101,
+      "total_deletions": 128,
+      "accepted_lines": 116,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
