@@ -1,8 +1,7 @@
 import { z } from 'zod/v4';
-import { resolve } from 'path';
-import type { McpServer } from '@byted/modelcontextprotocol-server';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { annotationsSchema, structuredSchema } from '../schemas.js';
-import { assetsDir, fetchBase64, loadAssetText, buildAnnotations, randInt, randPick, randParagraph, generateWav } from '../utils/index.js';
+import { fetchBase64, buildAnnotations, randInt, randPick, randParagraph, generateTextContent, generateWav } from '../utils/index.js';
 
 export function registerGenMixed(server: McpServer) {
   server.registerTool(
@@ -48,20 +47,28 @@ export function registerGenMixed(server: McpServer) {
               break;
             }
             case 'resource_link': {
-              const file = randPick(['sample.ts', 'sample.txt', 'sample.png']);
+              const res = generateTextContent();
+              const id = crypto.randomUUID().slice(0, 8);
               content.push({
-                type: 'resource_link', uri: `file://${resolve(assetsDir, file)}`,
-                name: file, mimeType: 'application/octet-stream', ...(ann ? { annotations: ann } : {}),
+                type: 'resource_link', uri: `generated://mixed/file_${id}.${res.ext}`,
+                name: `file_${id}.${res.ext}`, mimeType: res.mime, ...(ann ? { annotations: ann } : {}),
               });
               break;
             }
-            case 'resource':
+            case 'resource': {
+              const res = generateTextContent();
+              const id = crypto.randomUUID().slice(0, 8);
               content.push({
                 type: 'resource',
-                resource: { uri: `file://${resolve(assetsDir, 'sample.txt')}`, mimeType: 'text/plain', text: loadAssetText('sample.txt') },
+                resource: {
+                  uri: `generated://mixed/resource_${id}.${res.ext}`,
+                  mimeType: res.mime,
+                  text: res.text,
+                },
                 ...(ann ? { annotations: ann } : {}),
               });
               break;
+            }
           }
         }
       }

@@ -1,5 +1,5 @@
 import { z } from 'zod/v4';
-import type { McpServer } from '@byted/modelcontextprotocol-server';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { annotationsSchema, structuredSchema } from '../schemas.js';
 import { buildAnnotations, randInt } from '../utils/index.js';
 
@@ -20,7 +20,7 @@ export function registerGenImageUri(server: McpServer) {
     async ({ width, height, count, annotations, structured }) => {
       const ann = buildAnnotations(annotations);
       const content = Array.from({ length: count }, (_, i) => ({
-        type: 'image-uri' as any,
+        type: 'image-uri',
         // picsum 的 URL 会 302 到真实图片，每次带不同随机种子保证不同
         uri: `https://picsum.photos/${width}/${height}?random=${Date.now()}_${i}_${randInt(1000, 9999)}`,
         mimeType: 'image/jpeg',

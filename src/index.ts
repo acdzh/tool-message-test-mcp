@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { McpServer, StdioServerTransport } from '@byted/modelcontextprotocol-server';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerGenText } from './tools/gen_text.js';
 import { registerGenImage } from './tools/gen_image.js';
 import { registerGenImageUri } from './tools/gen_image_uri.js';

@@ -1,5 +1,5 @@
 import { z } from 'zod/v4';
-import type { McpServer } from '@byted/modelcontextprotocol-server';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { annotationsSchema, structuredSchema } from '../schemas.js';
 import { randInt, randPick, randSentence, randParagraph, buildAnnotations } from '../utils/index.js';
 

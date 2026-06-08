@@ -1,54 +1,65 @@
 import { z } from 'zod/v4';
-import { resolve } from 'path';
-import type { McpServer } from '@byted/modelcontextprotocol-server';
+import sharp from 'sharp';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { annotationsSchema, structuredSchema } from '../schemas.js';
-import { assetsDir, loadAssetBase64, loadAssetText, buildAnnotations, randPick } from '../utils/index.js';
+import { buildAnnotations, fetchPicsumBuffer, generateTextContent, randInt, randPick } from '../utils/index.js';
 
 export function registerGenEmbeddedResource(server: McpServer) {
   server.registerTool(
     'gen_embedded_resource',
     {
       title: 'Generate Embedded Resource',
-      description: '生成嵌入式资源内容（text 或 blob）',
+      description: '动态生成嵌入式资源内容（text 或 blob）',
       inputSchema: z.object({
         resource_type: z.enum(['text', 'blob']).default('text').describe('资源类型'),
+        width: z.number().min(1).max(4096).default(400).describe('图片宽度（仅 blob 有效）'),
+        height: z.number().min(1).max(4096).default(300).describe('图片高度（仅 blob 有效）'),
+        format: z.enum(['jpg', 'png', 'webp']).default('jpg').describe('图片格式（仅 blob 有效）'),
         count: z.number().min(1).max(20).default(1).describe('数量'),
         annotations: annotationsSchema,
         structured: structuredSchema,
       }),
     },
-    async ({ resource_type, count, annotations, structured }) => {
+    async ({ resource_type, width, height, format, count, annotations, structured }) => {
       const ann = buildAnnotations(annotations);
+      const mimeMap: Record<string, string> = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
 
-      const content = Array.from({ length: count }, () => {
-        if (resource_type === 'text') {
-          const files = ['sample.ts', 'sample.txt'];
-          const file = randPick(files);
-          const mime = file.endsWith('.ts') ? 'text/typescript' : 'text/plain';
+      const content = await Promise.all(
+        Array.from({ length: count }, async (_, i) => {
+          if (resource_type === 'text') {
+            const res = generateTextContent();
+            const id = crypto.randomUUID().slice(0, 8);
+            return {
+              type: 'resource' as const,
+              resource: {
+                uri: `generated://embedded/text_${id}.${res.ext}`,
+                mimeType: res.mime,
+                text: res.text,
+                ...(ann ? { annotations: ann } : {}),
+              },
+            };
+          }
+          // blob: 从 picsum 获取真实图片
+          const srcBuffer = await fetchPicsumBuffer(width, height, Date.now() + i);
+          let outputBuffer: Buffer;
+          if (format === 'jpg') {
+            outputBuffer = srcBuffer;
+          } else {
+            outputBuffer = await sharp(srcBuffer).toFormat(format as any).toBuffer();
+          }
+          const id = crypto.randomUUID().slice(0, 8);
+          const ext = format === 'jpg' ? 'jpg' : format;
           return {
             type: 'resource' as const,
             resource: {
-              uri: `file://${resolve(assetsDir, file)}`,
-              mimeType: mime,
-              text: loadAssetText(file),
+              uri: `generated://embedded/image_${id}.${ext}`,
+              mimeType: mimeMap[format]!,
+              blob: outputBuffer.toString('base64'),
               ...(ann ? { annotations: ann } : {}),
             },
           };
-        }
-        // blob
-        const files = ['sample.png', 'sample.jpg', 'sample.webp'];
-        const file = randPick(files);
-        const mimeMap: Record<string, string> = { 'sample.png': 'image/png', 'sample.jpg': 'image/jpeg', 'sample.webp': 'image/webp' };
-        return {
-          type: 'resource' as const,
-          resource: {
-            uri: `file://${resolve(assetsDir, file)}`,
-            mimeType: mimeMap[file]!,
-            blob: loadAssetBase64(file),
-            ...(ann ? { annotations: ann } : {}),
-          },
-        };
-      });
+        })
+      );
 
       const result: any = { content };
       if (structured) {

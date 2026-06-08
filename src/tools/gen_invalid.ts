@@ -1,7 +1,13 @@
 import { z } from 'zod/v4';
-import { resolve } from 'path';
-import type { McpServer } from '@byted/modelcontextprotocol-server';
-import { assetsDir, loadAssetBase64, randSentence, randInt } from '../utils/index.js';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { randSentence, randInt } from '../utils/index.js';
+
+/** 生成一小段假 base64 数据用于测试 */
+function fakeBase64(size: number = 64): string {
+  const buf = Buffer.alloc(size);
+  for (let i = 0; i < size; i++) buf[i] = randInt(0, 255);
+  return buf.toString('base64');
+}
 
 export function registerGenInvalid(server: McpServer) {
   server.registerTool(
@@ -96,11 +102,11 @@ export function registerGenInvalid(server: McpServer) {
         case 'image_no_data':
           return { content: [{ type: 'image', mimeType: 'image/png' } as any] };
         case 'image_no_mime':
-          return { content: [{ type: 'image', data: loadAssetBase64('sample.png') } as any] };
+          return { content: [{ type: 'image', data: fakeBase64(128) } as any] };
         case 'bad_base64':
           return { content: [{ type: 'image' as const, data: '!!!not-valid-base64@@@###', mimeType: 'image/png' }] };
         case 'audio_no_mime':
-          return { content: [{ type: 'audio', data: loadAssetBase64('sample_3s.mp3') } as any] };
+          return { content: [{ type: 'audio', data: fakeBase64(256) } as any] };
         case 'image_uri_no_uri':
           return { content: [{ type: 'image-uri', mimeType: 'image/png' } as any] };
         case 'resource_link_no_uri':
@@ -127,7 +133,7 @@ export function registerGenInvalid(server: McpServer) {
               { type: 'image' as const, data: '!!!not-base64', mimeType: 'image/png' },
               { type: 'text' as const, text: 'Another valid text.' },
               null as any,
-              { type: 'resource_link' as const, uri: `file://${resolve(assetsDir, 'sample.txt')}`, name: 'sample.txt' },
+              { type: 'resource_link' as const, uri: `generated://invalid/test_${crypto.randomUUID().slice(0, 8)}.txt`, name: 'test.txt' },
             ],
           };
       }

@@ -1,16 +1,8 @@
 import { z } from 'zod/v4';
 import sharp from 'sharp';
-import type { McpServer } from '@byted/modelcontextprotocol-server';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { annotationsSchema, structuredSchema } from '../schemas.js';
-import { buildAnnotations } from '../utils/index.js';
-
-/** 从 picsum 获取一张真实照片 buffer */
-async function fetchPicsumBuffer(width: number, height: number, seed: number): Promise<Buffer> {
-  const url = `https://picsum.photos/${width}/${height}.jpg?random=${seed}`;
-  const resp = await fetch(url, { redirect: 'follow' });
-  if (!resp.ok) throw new Error(`Fetch failed: ${resp.status} ${resp.statusText}`);
-  return Buffer.from(await resp.arrayBuffer());
-}
+import { buildAnnotations, fetchPicsumBuffer, randInt } from '../utils/index.js';
 
 /** 用多张图拼成动态 GIF */
 async function generateAnimatedGif(width: number, height: number, frameCount: number = 4): Promise<Buffer> {
