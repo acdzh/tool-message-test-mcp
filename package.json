@@ -1,6 +1,6 @@
 {
   "name": "mcp-message-test",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP server for testing message types",
   "type": "module",
   "main": "dist/index.js",
@@ -8,7 +8,8 @@
     "mcp-message-test": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "assets"
   ],
   "scripts": {
     "build": "tsc && shx chmod +x dist/index.js",

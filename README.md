@@ -49,7 +49,7 @@ bun run index.ts
   "mcpServers": {
     "message-test": {
       "command": "bun run",
-      "args": ["/Users/admin/dev/work/mcp/server/message-test/index.ts"]
+      "args": ["/Users/admin/dev/work/mcp/server/message-test/src/index.ts"]
     }
   }
 }

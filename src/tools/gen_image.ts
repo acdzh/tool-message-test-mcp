@@ -1,8 +1,12 @@
 import { z } from 'zod/v4';
+import { readdirSync } from 'fs';
 import sharp from 'sharp';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { annotationsSchema, structuredSchema } from '../schemas.js';
-import { buildAnnotations, fetchPicsumBuffer, randInt } from '../utils/index.js';
+import { buildAnnotations, fetchPicsumBuffer, assetsDir, loadAssetBase64, randInt, randPick } from '../utils/index.js';
+
+/** 获取 assets 目录下所有图片文件名 */
+const assetImages = readdirSync(assetsDir).filter(f => /\.(png|jpg|jpeg|gif|webp|avif)$/i.test(f));
 
 /** 用多张图拼成动态 GIF */
 async function generateAnimatedGif(width: number, height: number, frameCount: number = 4): Promise<Buffer> {
@@ -43,7 +47,7 @@ export function registerGenImage(server: McpServer) {
     'gen_image',
     {
       title: 'Generate Image',
-      description: '获取随机真实图片，返回 base64 编码。gif 为多帧动图',
+      description: '获取随机真实图片，返回 base64 编码。gif 为多帧动图。有 40% 概率返回本地 assets 图片',
       inputSchema: z.object({
         width: z.number().min(1).max(4096).default(400).describe('图片宽度'),
         height: z.number().min(1).max(4096).default(300).describe('图片高度'),
@@ -66,6 +70,19 @@ export function registerGenImage(server: McpServer) {
       const ann = buildAnnotations(annotations);
       const content = await Promise.all(
         Array.from({ length: count }, async (_, i) => {
+          // 40% 概率返回本地 assets 图片
+          if (assetImages.length > 0 && Math.random() < 0.4) {
+            const filename = randPick(assetImages);
+            const ext = filename.split('.').pop()!.toLowerCase();
+            const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+            return {
+              type: 'image' as const,
+              data: loadAssetBase64(filename),
+              mimeType: mime,
+              ...(ann ? { annotations: ann } : {}),
+            };
+          }
+
           let outputBuffer: Buffer;
 
           if (format === 'gif') {
